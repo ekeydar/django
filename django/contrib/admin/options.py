@@ -1755,6 +1755,17 @@ class ModelAdmin(BaseModelAdmin):
         # use the formset to validate/process POSTed data.
         formset = cl.formset = None
 
+        def _set_disabled(formset):
+            # check if has_change_permission was overriden
+            # if not, there is no per object permission check
+            if self.has_change_permission.__func__ is ModelAdmin.has_change_permission:
+                return
+            for form in formset:
+                instance = form.instance
+                if not self.has_change_permission(request, obj=instance):
+                    for field in self.list_editable:
+                        form.fields[field].disabled = True
+
         # Handle POSTed bulk-edit data.
         if request.method == 'POST' and cl.list_editable and '_save' in request.POST:
             if not self.has_change_permission(request):
@@ -1762,6 +1773,7 @@ class ModelAdmin(BaseModelAdmin):
             FormSet = self.get_changelist_formset(request)
             modified_objects = self._get_list_editable_queryset(request, FormSet.get_default_prefix())
             formset = cl.formset = FormSet(request.POST, request.FILES, queryset=modified_objects)
+            _set_disabled(formset)
             if formset.is_valid():
                 changecount = 0
                 for form in formset.forms:
@@ -1790,6 +1802,7 @@ class ModelAdmin(BaseModelAdmin):
         elif cl.list_editable and self.has_change_permission(request):
             FormSet = self.get_changelist_formset(request)
             formset = cl.formset = FormSet(queryset=cl.result_list)
+            _set_disabled(formset)
 
         # Build the list of media to be used by the formset.
         if formset:
